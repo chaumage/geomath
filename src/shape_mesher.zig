@@ -4,6 +4,13 @@ const assert = std.debug.assert;
 const utils = @import("utils.zig");
 const print = std.debug.print;
 
+const ShapeError = error{
+    SelfIntersection,
+    TooFewPoints,
+    AreaTooSmall,
+    CoincidentPoints,
+};
+
 ///Linked list of (x, y) positions
 ///Describes a 2D polygon
 ///Can be meshed with triangles on its positive part defined by a linear function of x and y
@@ -92,6 +99,71 @@ pub fn ShapeMesher(Id: type, F: type, capacity: Id) type {
         ///Moves to previous node
         inline fn move_back(self: *Self) void {
             self.current = self.prev[self.current];
+        }
+
+        pub fn area(self: *Self) F {
+            return self.integratePositiveLinearFn(0, 0, 1);
+        }
+
+        fn hasCoincidentPoints(self: *Self) bool {
+            if (self.len < 2) {
+                return false;
+            }
+            var cur: Id = self.current;
+            for (0..(self.len - 1)) |i| {
+                self.current = cur;
+                self.move_forward();
+                cur = self.current;
+                for ((i + 1)..self.len) |_| {
+                    self.move_forward();
+                    if (self.current_node().distance(&self.points[cur]) < 1e-10) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        fn autoIntersects(self: *Self) bool {
+            if (self.len < 3) {
+                return false;
+            }
+            var cur = self.current;
+            var p1: *const Point = undefined;
+            var p2: *const Point = undefined;
+            var p3: *const Point = undefined;
+            var p4: *const Point = undefined;
+            for (0..(self.len - 1)) |i| {
+                self.current = cur;
+                self.move_forward();
+                cur = self.current;
+                p1 = self.current_node();
+                p2 = self.next_node();
+                for ((i + 1)..self.len) |_| {
+                    self.move_forward();
+                    p3 = self.current_node();
+                    p4 = self.next_node();
+                    if (utils.segmentsIntersect(F, p1, p2, p3, p4, 1e-10)) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        pub fn isValidShape(self: *Self) !void {
+            if (self.len < 3) {
+                return ShapeError.TooFewPoints;
+            }
+            if (self.hasCoincidentPoints()) {
+                return ShapeError.CoincidentPoints;
+            }
+            if (self.autoIntersects()) {
+                return ShapeError.SelfIntersection;
+            }
+            if (self.area() < 1e-10) {
+                return ShapeError.AreaTooSmall;
+            }
         }
 
         ///Insert data after current node
@@ -485,4 +557,49 @@ test "Integrate edge case" {
 
     const integral = shape.integratePositiveLinearFn(-1, 0, 0);
     try std.testing.expectApproxEqAbs(0, integral, 1e-15);
+}
+
+test "Invalid shape: tooFewPoints" {
+    const Shape = ShapeMesher(u16, f64, 20);
+    var shape = Shape.init(&.{
+        .{ .x = 0, .y = 0 },
+        .{ .x = 1, .y = 0 },
+    });
+
+    try std.testing.expectError(ShapeError.TooFewPoints, shape.isValidShape());
+}
+
+test "Invalid shape: CoincidentPoints" {
+    const Shape = ShapeMesher(u16, f64, 20);
+    var shape = Shape.init(&.{
+        .{ .x = 0, .y = 0 },
+        .{ .x = 1, .y = 0 },
+        .{ .x = 1, .y = 0 },
+    });
+
+    try std.testing.expectError(ShapeError.CoincidentPoints, shape.isValidShape());
+}
+
+test "Invalid shape: SelfIntersection" {
+    const Shape = ShapeMesher(u16, f64, 20);
+    var shape = Shape.init(&.{
+        .{ .x = 0, .y = 0 },
+        .{ .x = 1, .y = 0 },
+        .{ .x = 0, .y = 1 },
+        .{ .x = 1, .y = 1 },
+    });
+
+    try std.testing.expectError(ShapeError.SelfIntersection, shape.isValidShape());
+}
+
+test "Invalid shape: AreaTooSmall" {
+    const Shape = ShapeMesher(u16, f64, 20);
+    var shape = Shape.init(&.{
+        .{ .x = 0, .y = 0 },
+        .{ .x = 1e-5, .y = 0 },
+        .{ .x = 1e-5, .y = 1e-5 },
+        .{ .x = 0, .y = 0.5e-5 },
+    });
+
+    try std.testing.expectError(ShapeError.AreaTooSmall, shape.isValidShape());
 }

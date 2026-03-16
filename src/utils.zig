@@ -185,3 +185,45 @@ test "IntegrateOnTriMesh" {
     );
     try testing.expectEqual(0.5, i);
 }
+
+/// Returns which side of the edge defined by p1 and p2
+/// point p lies on
+/// if the distance is less than tol, returns onEdge
+fn distToLine(T: type, p: *const Point(T), p1: *const Point(T), p2: *const Point(T)) T {
+    const dx = p2.x - p1.x;
+    const dy = p2.y - p1.y;
+    const len = @sqrt(dx * dx + dy * dy);
+
+    const cross = (p.x - p1.x) * dy - (p.y - p1.y) * dx;
+    return cross / len;
+}
+
+/// only useful for use inside segmentsIntersect
+fn onSegment(T: type, p: *const Point(T), p1: *const Point(T), p2: *const Point(T)) bool {
+    return @min(p1.x, p2.x) <= p.x and p.x <= @max(p1.x, p2.x) and
+        @min(p1.y, p2.y) <= p.y and p.y <= @max(p1.y, p2.y);
+}
+
+/// Returns true if the two segments intersect
+pub fn segmentsIntersect(T: type, p1: *const Point(T), p2: *const Point(T), p3: *const Point(T), p4: *const Point(T), tol: T) bool {
+    assertFloat(T);
+
+    const s1 = distToLine(T, p1, p3, p4);
+    const s2 = distToLine(T, p2, p3, p4);
+    const s3 = distToLine(T, p3, p1, p2);
+    const s4 = distToLine(T, p4, p1, p2);
+
+    if (s1 * s2 < 0 and s3 * s4 < 0) {
+        return true;
+    }
+
+    // colinear edge case
+    if (@abs(s1) <= tol and @abs(s2) <= tol and @abs(s3) <= tol and @abs(s4) <= tol) {
+        if (onSegment(T, p1, p3, p4)) return true;
+        if (onSegment(T, p2, p3, p4)) return true;
+        if (onSegment(T, p2, p1, p2)) return true;
+        if (onSegment(T, p3, p1, p2)) return true;
+    }
+
+    return false;
+}

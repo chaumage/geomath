@@ -1,3 +1,5 @@
+const math = @import("std").math;
+
 fn assertFloat(comptime T: type) void {
     const info = @typeInfo(T);
     if (info != .float) {
@@ -18,6 +20,10 @@ pub fn Point(T: type) type {
                 .x = x,
                 .y = y,
             };
+        }
+
+        pub fn distance(self: *const Self, other: *const Self) T {
+            return @sqrt(math.pow(T, self.x - other.x, 2) + math.pow(T, self.y - other.y, 2));
         }
     };
 }
