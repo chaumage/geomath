@@ -2,6 +2,7 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const assert = std.debug.assert;
 const utils = @import("utils.zig");
+const Point = @import("point.zig").Point;
 const print = std.debug.print;
 
 const ShapeError = error{
@@ -15,11 +16,11 @@ const ShapeError = error{
 ///Describes a 2D polygon
 ///Can be meshed with triangles on its positive part defined by a linear function of x and y
 pub fn ShapeMesher(Id: type, F: type, capacity: Id) type {
-    const Point = @import("point.zig").Point(F);
+    const P = Point(F);
     return struct {
         len: Id,
         current: Id,
-        points: [capacity]Point,
+        points: [capacity]P,
         prev: [capacity]Id,
         next: [capacity]Id,
         is_convex: ?bool = null,
@@ -34,7 +35,7 @@ pub fn ShapeMesher(Id: type, F: type, capacity: Id) type {
             .next = undefined,
         };
 
-        pub fn init(points: []const Point) Self {
+        pub fn init(points: []const P) Self {
             const len: Id = @truncate(points.len);
             assert(len <= capacity);
 
@@ -72,15 +73,15 @@ pub fn ShapeMesher(Id: type, F: type, capacity: Id) type {
             self.next[len - 1] = 0;
         }
 
-        inline fn prev_node(self: *Self) *Point {
+        inline fn prev_node(self: *Self) *P {
             return &self.points[self.prev[self.current]];
         }
 
-        inline fn current_node(self: *Self) *Point {
+        inline fn current_node(self: *Self) *P {
             return &self.points[self.current];
         }
 
-        inline fn next_node(self: *Self) *Point {
+        inline fn next_node(self: *Self) *P {
             return &self.points[self.next[self.current]];
         }
 
@@ -129,10 +130,10 @@ pub fn ShapeMesher(Id: type, F: type, capacity: Id) type {
                 return false;
             }
             var cur = self.current;
-            var p1: *const Point = undefined;
-            var p2: *const Point = undefined;
-            var p3: *const Point = undefined;
-            var p4: *const Point = undefined;
+            var p1: *const P = undefined;
+            var p2: *const P = undefined;
+            var p3: *const P = undefined;
+            var p4: *const P = undefined;
             for (0..(self.len - 1)) |i| {
                 self.current = cur;
                 self.move_forward();
@@ -168,7 +169,7 @@ pub fn ShapeMesher(Id: type, F: type, capacity: Id) type {
 
         ///Insert data after current node
         ///Inserted node becomes current node
-        fn insert(self: *Self, data: Point) void {
+        fn insert(self: *Self, data: P) void {
             assert(self.len < capacity);
 
             if (self.len == 0) {
@@ -278,7 +279,7 @@ pub fn ShapeMesher(Id: type, F: type, capacity: Id) type {
                 v_next = self.evaluate(a, b, c);
                 self.move_back();
                 if (v * v_next < 0) {
-                    const intersection: Point = utils.intersection(F, self.current_node(), self.next_node(), v, v_next);
+                    const intersection: P = utils.intersection(F, self.current_node(), self.next_node(), v, v_next);
                     self.insert(intersection);
                 }
                 self.move_forward();
